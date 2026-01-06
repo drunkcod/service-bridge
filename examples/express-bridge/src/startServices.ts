@@ -1,17 +1,17 @@
 import { type MessagePort, Worker } from 'worker_threads';
-import { ServiceBridge, makeProxy } from '@drunkcod/service-bridge';
+import { ServiceBridge, makeProxy, startServiceBridgeWorker } from '@drunkcod/service-bridge';
 
 const CloseBridge: unique symbol = Symbol('closeBridge');
 
 export const startServices = async (port?: MessagePort | Worker) => {
 	const bridge = new ServiceBridge(port ?? 'worker');
 	var services = await bridge.config(import.meta.url, async (bridge) => {
-		const math = (await bridge.import('./services/math.js')) as typeof import('./services/math.js');
-		const { setTimeout } = await import('node:timers/promises');
+		const { hello } = (await bridge.import('./services/hello.js')) as typeof import('./services/hello.js');
+		const { user } = (await bridge.import('./services/auth.js')) as typeof import('./services/auth.js');
+
 		return {
-			add: bridge.add('/math/add', math.add),
-			error: bridge.add('/math/error', math.error),
-			delay: bridge.add('/delay', async (delayMs: number) => await setTimeout(delayMs)),
+			hello: bridge.add('/hello', hello),
+			user: bridge.add('/auth/user', user),
 		};
 	});
 	return {

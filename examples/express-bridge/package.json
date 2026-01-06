@@ -1,0 +1,29 @@
+{
+  "name": "example-express-bridge",
+  "private": true,
+  "version": "0.0.1",
+  "description": "",
+  "license": "MIT",
+  "author": "Tobbe Gyllebring <tobbe@drunkcod.com>",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "start": "node --no-deprecation --enable-source-maps --import @drunkcod/ts-node-esm --watch-path=./src --watch-preserve-output src/index.ts",
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@drunkcod/service-bridge": "file:../../",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3"
+  },
+  "devDependencies": {
+    "@drunkcod/ts-node-esm": "^0.0.3",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^24.10.4",
+    "typescript": "^5.9.3"
+  }
+}

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { SlotBuffer } from './SlotBuffer.js';
 import { BridgeCommand } from './BridgeCommand.js';
 import { ServiceBridgeCallError } from './SerciveBridgeCallError.js';
+import { startServiceBridgeWorker } from './runServiceBridgeWorker.js';
 
 export type AnyFn = (...args: any[]) => any;
 
@@ -28,8 +29,9 @@ export class ServiceBridge {
 	readonly port;
 	readonly slots;
 
-	constructor(port: WorkerPort, maxSlots: number = 1024) {
-		this.port = port;
+	constructor(portOrWorker: WorkerPort | 'worker', maxSlots: number = 1024) {
+		const port = portOrWorker === 'worker' ? startServiceBridgeWorker() : portOrWorker;
+		this.port = port ?? startServiceBridgeWorker();
 		this.slots = new SlotBuffer<{ resolve: (result: any) => void; reject: (reason?: any) => void }>(maxSlots);
 		port.on('message', (message) => this.#onMessage(message));
 	}
