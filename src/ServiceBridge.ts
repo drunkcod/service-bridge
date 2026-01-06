@@ -5,15 +5,16 @@ import { fileURLToPath } from 'url';
 
 import { SlotBuffer } from './SlotBuffer.js';
 import { BridgeCommand } from './BridgeCommand.js';
+import { ServiceBridgeCallError } from './SerciveBridgeCallError.js';
 
 export type AnyFn = (...args: any[]) => any;
 
 const _FnRef: unique symbol = Symbol('FnRef');
 export type FnRef<T extends AnyFn> = string & { [_FnRef]: T };
 
-export type DispatchWorkerErrorReply = { name: string; message: string; cause?: unknown; stack?: string };
+export type ServiceBridgeWorkerErrorReply = { name: string; message: string; cause?: unknown; stack?: string };
 
-export type DispatchWorkerResult = [bigint, null, unknown] | [bigint, DispatchWorkerErrorReply, null];
+export type ServiceBridgeWorkerResult = [bigint, null, unknown] | [bigint, ServiceBridgeWorkerErrorReply, null];
 
 export interface ServiceBrdigeConfig {
 	add<T extends AnyFn>(method: string, fn: T): FnRef<T>;
@@ -68,10 +69,10 @@ export class ServiceBridge {
 		this.#postMessage(BridgeCommand.close);
 	}
 
-	#onMessage([slot, error, result]: DispatchWorkerResult) {
+	#onMessage([slot, error, result]: ServiceBridgeWorkerResult) {
 		const p = this.slots.release(slot);
 		if (p === undefined) return;
-		if (error) p.reject(new DispatchWorkerError(error));
+		if (error) p.reject(new ServiceBridgeCallError(error));
 		else p.resolve(result);
 	}
 
@@ -97,11 +98,3 @@ const calleeRoot = (startAt: Function) => {
 };
 
 const asPath = (urlOrPath: string) => (urlOrPath.startsWith('file://') ? fileURLToPath(urlOrPath) : urlOrPath);
-
-export class DispatchWorkerError extends Error {
-	constructor(reply: DispatchWorkerErrorReply) {
-		super(reply.message, reply.cause ? { cause: reply.cause } : undefined);
-		this.name = reply.name;
-		if (reply.stack) this.stack = reply.stack;
-	}
-}

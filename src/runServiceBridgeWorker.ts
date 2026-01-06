@@ -2,7 +2,7 @@ import sourceMapSupport from 'source-map-support';
 sourceMapSupport.install();
 
 import { type MessagePort, Worker } from 'worker_threads';
-import type { DispatchWorkerResult } from './ServiceBridge.js';
+import type { ServiceBridgeWorkerResult } from './ServiceBridge.js';
 import { BridgeCommand } from './BridgeCommand.js';
 
 const ThisFileName =
@@ -15,7 +15,7 @@ const ThisFileName =
 export const runServiceBridgeWorker = (port: MessagePort | null) => {
 	if (!port) throw new Error('Missing "port"');
 	let fns: Record<string, Function> = Object.create(null);
-	const reply = (result: DispatchWorkerResult) => port.postMessage(result);
+	const reply = (result: ServiceBridgeWorkerResult) => port.postMessage(result);
 	const makeFn = (fnDef: string) => Function(`return (${fnDef}).apply(this, arguments)`);
 
 	const onConfig = (fnDef: string, basePath: string) => {
