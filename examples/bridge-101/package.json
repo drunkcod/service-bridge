@@ -1,0 +1,25 @@
+{
+  "name": "example-bridge-101",
+  "private": true,
+  "version": "0.0.1",
+  "description": "",
+  "license": "MIT",
+  "author": "Tobbe Gyllebring <tobbe@drunkcod.com>",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "start": "node --no-deprecation --enable-source-maps --import @drunkcod/ts-node-esm -C ts-node src/index.ts",
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@drunkcod/service-bridge": "file:../../"
+  },
+  "devDependencies": {
+    "@drunkcod/ts-node-esm": "^0.0.3",
+    "@types/node": "^24.10.4",
+    "typescript": "^5.9.3"
+  }
+}
