@@ -1,6 +1,3 @@
-import sourceMapSupport from 'source-map-support';
-sourceMapSupport.install();
-
 import { type MessagePort, Worker } from 'worker_threads';
 import type { AnyFn, FnRef, ServiceBridgeBuilder, ServiceBridgeWorkerResult, Strings } from './ServiceBridge.js';
 import { BridgeCommand } from './BridgeCommand.js';
@@ -38,7 +35,13 @@ class WorkerBridgeBuilder implements ServiceBridgeBuilder<any> {
 export const runServiceBridgeWorker = (port: MessagePort | null) => {
 	if (!port) throw new Error('Missing "port"');
 	let fns: Record<string, Function> = Object.create(null);
-	const reply = (result: ServiceBridgeWorkerResult) => port.postMessage(result);
+	const reply = (result: ServiceBridgeWorkerResult) => {
+		try {
+			port.postMessage(result);
+		} catch (err) {
+			port.postMessage([result[0], toErrorReply(err), null]);
+		}
+	};
 	const makeFn = (fnDef: string) => Function(`return (${fnDef}).apply(this, arguments)`);
 
 	const onConfig = (fnDef: string, basePath: string) => {

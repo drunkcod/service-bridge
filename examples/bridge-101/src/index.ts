@@ -25,9 +25,15 @@ import { startServices } from './startServices.js';
 		console.log(err);
 	}
 
-	// cloning errors.
+	// cloning errors during call.
 	try {
 		await services.echo({ notClonable: Symbol('will-fail') });
+	} catch (err) {
+		console.log(err);
+	}
+	// cloning errors during reply.
+	try {
+		await services.badReply();
 	} catch (err) {
 		console.log(err);
 	}

@@ -10,7 +10,7 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "start": "node --no-deprecation --enable-source-maps --import @drunkcod/ts-node-esm -C ts-node src/index.ts",
+    "start": "node --no-deprecation --enable-source-maps --import @drunkcod/ts-node-esm src/index.ts",
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

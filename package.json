@@ -19,11 +19,7 @@
   "devDependencies": {
     "@drunkcod/ts-node-esm": "^0.0.3",
     "@types/node": "^24.10.4",
-    "@types/source-map-support": "^0.5.10",
     "rimraf": "^6.1.2",
     "typescript": "^5.9.3"
-  },
-  "dependencies": {
-    "source-map-support": "^0.5.21"
   }
 }

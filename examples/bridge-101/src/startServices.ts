@@ -15,6 +15,9 @@ export const startServices = (port?: MessagePort | Worker) =>
 				error: bridge.add('/math/error', math.error),
 				delay: bridge.add('/delay', async (delayMs: number) => await setTimeout(delayMs)),
 				echo: bridge.add('/echo', (x: unknown) => x),
+				badReply: bridge.add('/badReply', () => {
+					throw new Error('Bad reply.', { cause: Symbol('bad-reply') });
+				}),
 			};
 		},
 		{ port, baseUrl: import.meta.url }
