@@ -9,12 +9,25 @@ const run = async <T extends ServiceHandler>(res: express.Response, handler: T, 
 	res.status(status).send(body);
 };
 
+type UserInfo = { userId: string };
+
+declare global {
+	namespace Express {
+		interface Request {
+			user?: UserInfo;
+		}
+	}
+}
+
+function ensureAuthenticated(req: express.Request): asserts req is express.Request & { user: UserInfo } {
+	if (!req.user) throw new Error('Not authenticated.');
+}
+
 (async function main() {
 	const port = 8080;
 	const app = express();
 
 	var proxy = await startServices();
-	console.log(proxy.services);
 	const { auth, hello } = proxy.services;
 
 	// delegate to worker
@@ -34,23 +47,18 @@ const run = async <T extends ServiceHandler>(res: express.Response, handler: T, 
 	const authMiddleware = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
 		const authorization = req.headers.authorization;
 		if (!authorization) {
-			res.sendStatus(403);
+			res.sendStatus(400);
 			return;
 		}
-		const { status, body } = await auth.user(authorization);
-		Reflect.set(req, 'user', body);
-		if (status === 200) next();
-		else res.sendStatus(403);
+		const user = await auth.user(authorization);
+		if (user.status === 200) {
+			req.user = user.body;
+			next();
+		} else res.status(user.status).send(user.status);
 	};
 
-	interface UserRequest extends express.Request {
-		user: { userId: string };
-	}
-
-	function assertUserRequest(req: express.Request): asserts req is UserRequest {}
-
 	app.get('/user/hello', authMiddleware, (req, res) => {
-		assertUserRequest(req);
+		ensureAuthenticated(req);
 		run(res, hello, req.user.userId);
 	});
 

@@ -9,11 +9,11 @@ type ServiceRegistry = {
 export const startServices = (port?: MessagePort | Worker) =>
 	serviceBridgeBuilder<ServiceRegistry>().createProxy(
 		async (bridge) => {
-			const { user } = await bridge.import('./services/auth.js');
+			const auth = await bridge.import('./services/auth.js');
 			const { hello } = await bridge.import('./services/hello.js');
 
 			return {
-				auth: bridge.add({ user: ['/auth/user', user] }),
+				auth: bridge.add(auth.startService()),
 				hello: bridge.add('/hello', hello),
 			};
 		},

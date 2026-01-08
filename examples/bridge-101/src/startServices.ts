@@ -5,7 +5,7 @@ type ServiceRegistry = {
 	'./services/math.js': typeof import('./services/math.js');
 };
 
-export const startServices = async (port?: MessagePort | Worker) =>
+export const startServices = (port?: MessagePort | Worker) =>
 	serviceBridgeBuilder<ServiceRegistry>().createProxy(
 		async (bridge) => {
 			const math = await bridge.import('./services/math.js');
@@ -14,6 +14,7 @@ export const startServices = async (port?: MessagePort | Worker) =>
 				add: bridge.add('/math/add', math.add),
 				error: bridge.add('/math/error', math.error),
 				delay: bridge.add('/delay', async (delayMs: number) => await setTimeout(delayMs)),
+				echo: bridge.add('/echo', (x: unknown) => x),
 			};
 		},
 		{ port, baseUrl: import.meta.url }

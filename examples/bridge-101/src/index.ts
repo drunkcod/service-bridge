@@ -24,4 +24,11 @@ import { startServices } from './startServices.js';
 	} catch (err) {
 		console.log(err);
 	}
+
+	// cloning errors.
+	try {
+		await services.echo({ notClonable: Symbol('will-fail') });
+	} catch (err) {
+		console.log(err);
+	}
 })();

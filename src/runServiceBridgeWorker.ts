@@ -4,8 +4,9 @@ sourceMapSupport.install();
 import { type MessagePort, Worker } from 'worker_threads';
 import type { AnyFn, FnRef, ServiceBridgeBuilder, ServiceBridgeWorkerResult, Strings } from './ServiceBridge.js';
 import { BridgeCommand } from './BridgeCommand.js';
+import { toErrorReply } from './toErrorReply.js';
 
-const ThisFileName =
+export const ThisFileName =
 	(function getFileName() {
 		const x: { stack?: string } = new Error();
 		const thisMethodLine = x.stack?.split('\n')[1];
@@ -57,26 +58,7 @@ export const runServiceBridgeWorker = (port: MessagePort | null) => {
 					const r = await Promise.resolve(fn(...data));
 					reply([slot, null, r]);
 				} catch (err) {
-					if (err instanceof Error) {
-						let stack = err.stack;
-						if (stack) {
-							const lines = stack.split('\n');
-							const thisFile = lines.findIndex((x) => x.includes(ThisFileName));
-							if (thisFile !== -1) stack = lines.slice(0, thisFile).join('\n');
-						}
-						reply([
-							slot,
-							{
-								name: err.name,
-								message: err.message,
-								cause: err.cause,
-								stack,
-							},
-							null,
-						]);
-					} else {
-						reply([slot, { name: 'Error', message: String(err) }, null]);
-					}
+					reply([slot, toErrorReply(err), null]);
 				}
 			} else {
 				reply([slot, { name: 'MissingFunctionError', message: 'No such function', cause: fnName }, null]);
@@ -100,7 +82,7 @@ export const runServiceBridgeWorker = (port: MessagePort | null) => {
 
 const DefaultWorkerScript = `
 	import { parentPort } from 'node:worker_threads';
-	import { runServiceBridgeWorker } from '@drunkcod/service-bridge';
+	import { runServiceBridgeWorker } from '@drunkcod/service-bridge/worker';
 	runServiceBridgeWorker(parentPort);
 `;
 export const startServiceBridgeWorker = () => new Worker(DefaultWorkerScript, { eval: true });

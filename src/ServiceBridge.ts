@@ -8,6 +8,7 @@ import { BridgeCommand } from './BridgeCommand.js';
 import { ServiceBridgeCallError } from './ServiceBridgeCallError.js';
 import { startServiceBridgeWorker } from './runServiceBridgeWorker.js';
 import { serviceProxy } from './ServiceProxy.js';
+import { toErrorReply } from './toErrorReply.js';
 
 export type AnyFn = (...args: any[]) => any;
 
@@ -20,10 +21,11 @@ export type ServiceBridgeWorkerResult = [bigint, null, unknown] | [bigint, Servi
 
 type AnyToUnknown<T> = 0 extends false & T ? unknown : T;
 export type Strings<T> = T extends string ? T : never;
+export type ServiceMap = Record<string, readonly [string, AnyFn]>;
 
 export interface ServiceBridgeBuilder<ServiceRegistry> {
 	add<T extends AnyFn>(method: string, fn: T): FnRef<T>;
-	add<T extends Record<string, [string, AnyFn]>>(methods: T): { [P in Strings<keyof T>]: FnRef<T[P][1]> };
+	add<T extends ServiceMap>(methods: T): { [P in Strings<keyof T>]: FnRef<T[P][1]> };
 	import<T extends Strings<keyof ServiceRegistry>>(relPath: T): Promise<AnyToUnknown<ServiceRegistry[T]>>;
 }
 
@@ -90,7 +92,11 @@ export class ServiceBridge<ServiceRegistry = any> {
 		const msg: [bigint, BridgeCommand, ...unknown[]] = [slot, command];
 		if (arg0) msg.push(arg0);
 		if (args) msg.push(...args);
-		this.port.postMessage(msg);
+		try {
+			this.port.postMessage(msg);
+		} catch (err) {
+			this.#onMessage([slot, toErrorReply(err), null]);
+		}
 		return promise;
 	}
 }
