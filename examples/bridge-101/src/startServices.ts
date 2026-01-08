@@ -1,5 +1,5 @@
 import { type MessagePort, Worker } from 'worker_threads';
-import { serviceBridgeBuilder } from '@drunkcod/service-bridge';
+import { serviceBridgeBuilder, type Transferred } from '@drunkcod/service-bridge';
 
 type ServiceRegistry = {
 	'./services/math.js': typeof import('./services/math.js');
@@ -17,6 +17,9 @@ export const startServices = (port?: MessagePort | Worker) =>
 				echo: bridge.add('/echo', (x: unknown) => x),
 				badReply: bridge.add('/badReply', () => {
 					throw new Error('Bad reply.', { cause: Symbol('bad-reply') });
+				}),
+				transfer: bridge.add('/transfer', (port: Transferred<MessagePort>) => {
+					port.postMessage('hello from the other side!');
 				}),
 			};
 		},

@@ -32,6 +32,8 @@ class WorkerBridgeBuilder implements ServiceBridgeBuilder<any> {
 	}
 }
 
+const makeFn = (fnDef: string) => Function(`return (${fnDef}).apply(this, arguments)`);
+
 export const runServiceBridgeWorker = (port: MessagePort | null) => {
 	if (!port) throw new Error('Missing "port"');
 	let fns: Record<string, Function> = Object.create(null);
@@ -42,7 +44,6 @@ export const runServiceBridgeWorker = (port: MessagePort | null) => {
 			port.postMessage([result[0], toErrorReply(err), null]);
 		}
 	};
-	const makeFn = (fnDef: string) => Function(`return (${fnDef}).apply(this, arguments)`);
 
 	const onConfig = (fnDef: string, basePath: string) => {
 		var fn = makeFn(fnDef);

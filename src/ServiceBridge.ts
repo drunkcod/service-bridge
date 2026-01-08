@@ -12,8 +12,20 @@ import { toErrorReply } from './toErrorReply.js';
 
 export type AnyFn = (...args: any[]) => any;
 
-const _FnRef: unique symbol = Symbol('FnRef');
-export type FnRef<T extends AnyFn> = string & { [_FnRef]: T };
+const FnRef: unique symbol = Symbol('FnRef');
+export type FnRef<T extends AnyFn> = string & { [FnRef]: T };
+
+const Transfer: unique symbol = Symbol('Transfer');
+export type Transfer<T> = { [Transfer]: true; readonly value: T };
+export type Transferred<T> = T & { [Transfer]: false };
+export const transfer = <T>(value: T) => ({ [Transfer]: true, value } as const);
+
+function isTransfer(x: unknown): x is Transfer<unknown> {
+	return !!x && typeof x === 'object' && Transfer in x;
+}
+
+type ServiceParameters<Args> = { [P in keyof Args]: Args[P] extends Transferred<infer A> ? Transfer<A> : Args[P] };
+type ServiceFn<T> = T extends (...args: infer P) => infer R ? (...args: ServiceParameters<P>) => R : never;
 
 export type ServiceBridgeWorkerErrorReply = { name: string; message: string; cause?: unknown; stack?: string };
 
@@ -24,8 +36,8 @@ export type Strings<T> = T extends string ? T : never;
 export type ServiceMap = Record<string, readonly [string, AnyFn]>;
 
 export interface ServiceBridgeBuilder<ServiceRegistry> {
-	add<T extends AnyFn>(method: string, fn: T): FnRef<T>;
-	add<T extends ServiceMap>(methods: T): { [P in Strings<keyof T>]: FnRef<T[P][1]> };
+	add<T extends AnyFn>(method: string, fn: T): FnRef<ServiceFn<T>>;
+	add<T extends ServiceMap>(methods: T): { [P in Strings<keyof T>]: FnRef<ServiceFn<T[P][1]>> };
 	import<T extends Strings<keyof ServiceRegistry>>(relPath: T): Promise<AnyToUnknown<ServiceRegistry[T]>>;
 }
 
@@ -93,7 +105,17 @@ export class ServiceBridge<ServiceRegistry = any> {
 		if (arg0) msg.push(arg0);
 		if (args) msg.push(...args);
 		try {
-			this.port.postMessage(msg);
+			let transferList: undefined | any[];
+
+			for (let t = 3; t < msg.length; ++t) {
+				const o = msg[t];
+				if (isTransfer(o)) {
+					var value = (msg[t] = o.value);
+					if (!transferList) transferList = [value];
+					else transferList.push(value);
+				}
+			}
+			this.port.postMessage(msg, transferList);
 		} catch (err) {
 			this.#onMessage([slot, toErrorReply(err), null]);
 		}

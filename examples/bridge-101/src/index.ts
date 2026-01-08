@@ -1,4 +1,5 @@
 import { startServices } from './startServices.js';
+import { transfer } from '@drunkcod/service-bridge';
 
 (async function main() {
 	var proxy = await startServices();
@@ -37,4 +38,9 @@ import { startServices } from './startServices.js';
 	} catch (err) {
 		console.log(err);
 	}
+
+	//transferrable
+	const m = new MessageChannel();
+	m.port1.on('message', (message) => console.log(message));
+	await services.transfer(transfer(m.port2));
 })();

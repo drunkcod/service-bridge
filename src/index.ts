@@ -1,4 +1,4 @@
-export type { ServiceMap, ServiceBridgeBuilder } from './ServiceBridge.js';
+export type { ServiceMap, ServiceBridgeBuilder, Transferred } from './ServiceBridge.js';
 
-export { ServiceBridge, serviceBridgeBuilder } from './ServiceBridge.js';
+export { ServiceBridge, serviceBridgeBuilder, transfer } from './ServiceBridge.js';
 export { serviceProxy } from './ServiceProxy.js';
