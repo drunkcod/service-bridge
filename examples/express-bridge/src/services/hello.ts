@@ -1,3 +1,3 @@
-import type { HttpResponse } from './../HttpResponse.js';
+import { ServiceResponse } from '../ServiceResponse.js';
 
-export const hello = (): HttpResponse => ({ status: 200, body: 'hello express bridge' });
+export const hello = (name?: string) => ServiceResponse.ok(`hello ${name ?? 'express bridge'}`);

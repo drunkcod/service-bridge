@@ -5,8 +5,9 @@ import { fileURLToPath } from 'url';
 
 import { SlotBuffer } from './SlotBuffer.js';
 import { BridgeCommand } from './BridgeCommand.js';
-import { ServiceBridgeCallError } from './SerciveBridgeCallError.js';
+import { ServiceBridgeCallError } from './ServiceBridgeCallError.js';
 import { startServiceBridgeWorker } from './runServiceBridgeWorker.js';
+import { serviceProxy } from './ServiceProxy.js';
 
 export type AnyFn = (...args: any[]) => any;
 
@@ -17,46 +18,51 @@ export type ServiceBridgeWorkerErrorReply = { name: string; message: string; cau
 
 export type ServiceBridgeWorkerResult = [bigint, null, unknown] | [bigint, ServiceBridgeWorkerErrorReply, null];
 
-export interface ServiceBrdigeConfig {
+type AnyToUnknown<T> = 0 extends false & T ? unknown : T;
+export type Strings<T> = T extends string ? T : never;
+
+export interface ServiceBridgeBuilder<ServiceRegistry> {
 	add<T extends AnyFn>(method: string, fn: T): FnRef<T>;
-	import(relPath: string): Promise<unknown>;
+	add<T extends Record<string, [string, AnyFn]>>(methods: T): { [P in Strings<keyof T>]: FnRef<T[P][1]> };
+	import<T extends Strings<keyof ServiceRegistry>>(relPath: T): Promise<AnyToUnknown<ServiceRegistry[T]>>;
 }
-export type ServiceBridgeConfigurator<T> = (bridge: ServiceBrdigeConfig) => T;
+
+export type ServiceBridgeRegisterFn<T, ServiceRegistry = any> = (bridge: ServiceBridgeBuilder<ServiceRegistry>) => T;
 
 type WorkerPort = MessagePort | Worker;
 
-export class ServiceBridge {
+type ServiceBridgeOptions = {
+	port?: WorkerPort;
+	baseUrl?: string;
+	maxSlots?: number;
+};
+
+export class ServiceBridge<ServiceRegistry = any> {
 	readonly port;
 	readonly slots;
+	readonly baseUrl: string;
 
-	constructor(portOrWorker: WorkerPort | 'worker', maxSlots: number = 1024) {
-		const port = portOrWorker === 'worker' ? startServiceBridgeWorker() : portOrWorker;
+	constructor(options?: ServiceBridgeOptions) {
+		const port = options?.port ?? startServiceBridgeWorker();
 		this.port = port ?? startServiceBridgeWorker();
-		this.slots = new SlotBuffer<{ resolve: (result: any) => void; reject: (reason?: any) => void }>(maxSlots);
+		this.slots = new SlotBuffer<{ resolve: (result: any) => void; reject: (reason?: any) => void }>(options?.maxSlots ?? 1024);
+
+		let baseUrl = options?.baseUrl ?? calleeRoot(ServiceBridge.prototype.register);
+		if (baseUrl.startsWith('file://')) baseUrl = fileURLToPath(baseUrl);
+		this.baseUrl = baseUrl.endsWith('.js') || baseUrl.endsWith('.ts') ? dirname(baseUrl) : baseUrl;
+
 		port.on('message', (message) => this.#onMessage(message));
 	}
 
-	config<T extends ServiceBridgeConfigurator<ReturnType<T>>>(fn: T): Promise<ReturnType<T>>;
-	config<T extends ServiceBridgeConfigurator<ReturnType<T>>>(baseUrl: string, fn: T): Promise<ReturnType<T>>;
-	config<T extends ServiceBridgeConfigurator<ReturnType<T>>>(baseUrlOrFn: string | T, fn?: T): Promise<ReturnType<T>> {
-		let baseUrl: string;
-		let fnDef: string;
-		if (typeof baseUrlOrFn === 'string') {
-			const path = asPath(baseUrlOrFn);
-			baseUrl = path.endsWith('.js') || path.endsWith('.ts') ? dirname(path) : path;
-			fnDef = fn!.toString();
-		} else {
-			baseUrl = calleeRoot(ServiceBridge.prototype.config);
-			fnDef = baseUrlOrFn.toString();
-		}
-		return this.#postMessage(BridgeCommand.config, fnDef, baseUrl);
+	register<T extends ServiceBridgeRegisterFn<ReturnType<T>, ServiceRegistry>>(fn: T): Promise<ReturnType<T>> {
+		return this.#postMessage(BridgeCommand.config, fn.toString(), [this.baseUrl]);
 	}
 
 	call<T extends AnyFn>(fn: FnRef<T>, ...args: Parameters<T>): Promise<ReturnType<T>>;
 	call(fn: string, ...args: unknown[]): Promise<unknown>;
 	async call(fn: string, ...args: unknown[]): Promise<unknown> {
 		try {
-			return await this.#postMessage(BridgeCommand.call, fn, ...args);
+			return await this.#postMessage(BridgeCommand.call, fn, args);
 		} catch (err) {
 			if (err instanceof Error && err.stack) {
 				const localStack = Object.create(null);
@@ -78,13 +84,29 @@ export class ServiceBridge {
 		else p.resolve(result);
 	}
 
-	#postMessage<TReturn>(command: BridgeCommand, ...args: unknown[]) {
-		var { promise, ...p } = Promise.withResolvers<TReturn>();
+	#postMessage<TReturn>(command: BridgeCommand, arg0?: unknown, args?: unknown[]) {
+		const { promise, ...p } = Promise.withResolvers<TReturn>();
 		const slot = this.slots.acquire(p);
-		this.port.postMessage([slot, command, ...args]);
+		const msg: [bigint, BridgeCommand, ...unknown[]] = [slot, command];
+		if (arg0) msg.push(arg0);
+		if (args) msg.push(...args);
+		this.port.postMessage(msg);
 		return promise;
 	}
 }
+
+export const serviceBridgeBuilder = <ServiceRegistry>() => ({
+	async createProxy<T extends Parameters<ServiceBridge<ServiceRegistry>['register']>[0]>(register: T, options?: ServiceBridgeOptions) {
+		const bridge = new ServiceBridge<ServiceRegistry>(options);
+		const services = await bridge.register(register);
+		return {
+			services: serviceProxy(bridge, services),
+			close() {
+				bridge.close();
+			},
+		};
+	},
+});
 
 const calleeRoot = (startAt: Function) => {
 	const o: { stack?: string } = {};

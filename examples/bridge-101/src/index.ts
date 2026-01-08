@@ -1,13 +1,14 @@
-import { startServices, stopServices } from './startServices.js';
+import { startServices } from './startServices.js';
 
 (async function main() {
-	var services = await startServices();
+	var proxy = await startServices();
+	const services = proxy.services;
 
 	console.log('🤘🏻 hello service-bridge 101 world. Ctrl+C to quit.');
 
 	process.once('SIGINT', async () => {
 		console.log('bye...');
-		stopServices(services);
+		proxy.close();
 		await new Promise((resolve) => process.stdout.write('', resolve));
 	});
 

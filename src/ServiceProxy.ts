@@ -1,24 +1,23 @@
+import { filterInPlace } from './filterInPlace.js';
 import type { ServiceBridge, FnRef } from './ServiceBridge.js';
 
 export type ServiceProxy<T> = {
-	[P in keyof T]: FnUnref<T[P]>;
+	[P in keyof T]: IfN<FnUnref<T[P]>, ServiceProxy<T[P]>>;
 };
 
 export type FnUnref<T> = T extends FnRef<infer Fn> ? (...args: Parameters<Fn>) => Promise<Awaited<ReturnType<Fn>>> : never;
 
-export const makeProxy = <T extends object>(x: T, worker: ServiceBridge): ServiceProxy<T> => {
-	const thunks: Record<string | symbol, Function> = Object.create(null);
-	return new Proxy(x, {
-		get(target, prop) {
-			const found = thunks[prop];
-			if (found) return found;
-			const fnName = Reflect.get(target, prop);
-			if (typeof fnName === 'string') {
-				const thunk = (...args: unknown[]) => worker.call(fnName, ...args);
-				thunks[prop] = thunk;
-				return thunk;
-			}
-			return fnName;
-		},
-	}) as ServiceProxy<T>;
+type IfN<T, T2> = [T] extends [never] ? T2 : T;
+
+export const serviceProxy = <T extends object>(bridge: ServiceBridge, x: T): ServiceProxy<T> => {
+	const makeThunk = (x: unknown) => {
+		if (!x) return x;
+		if (typeof x === 'string') {
+			return Object.defineProperty((...args: unknown[]) => bridge.call(x, ...args), 'name', { value: x });
+		} else if (typeof x === 'object') return serviceProxy(bridge, x);
+		return undefined;
+	};
+	const thunks = Object.entries(x).map(([prop, x]) => [prop, makeThunk(x)]);
+	filterInPlace(thunks, ([_, x]) => !!x);
+	return Object.fromEntries(thunks) as ServiceProxy<T>;
 };

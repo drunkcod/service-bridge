@@ -2,7 +2,7 @@ import sourceMapSupport from 'source-map-support';
 sourceMapSupport.install();
 
 import { type MessagePort, Worker } from 'worker_threads';
-import type { ServiceBridgeWorkerResult } from './ServiceBridge.js';
+import type { AnyFn, FnRef, ServiceBridgeBuilder, ServiceBridgeWorkerResult, Strings } from './ServiceBridge.js';
 import { BridgeCommand } from './BridgeCommand.js';
 
 const ThisFileName =
@@ -12,6 +12,28 @@ const ThisFileName =
 		return thisMethodLine?.match(/\((.*):\d+:\d+\)/)?.[1];
 	})() ?? import.meta.filename;
 
+class WorkerBridgeBuilder implements ServiceBridgeBuilder<any> {
+	constructor(private readonly baseUrl: URL, private readonly fns: Record<string, Function>) {}
+
+	add<T extends AnyFn>(method: string, fn: T): FnRef<T>;
+	add<T extends Record<string, [string, AnyFn]>>(methods: T): { [P in Strings<keyof T>]: FnRef<T[P][1]> };
+	add(nameOrMap: string | Record<string, [string, Function]>, fn?: Function) {
+		if (typeof nameOrMap === 'string') {
+			this.fns[nameOrMap] = fn!;
+			return nameOrMap;
+		}
+		const r: Record<string, string> = {};
+		for (const [name, x] of Object.entries(nameOrMap)) {
+			r[name] = x[0];
+			this.fns[x[0]] = x[1];
+		}
+		return r;
+	}
+	import(relPath: string) {
+		return import(new URL(relPath, this.baseUrl).href);
+	}
+}
+
 export const runServiceBridgeWorker = (port: MessagePort | null) => {
 	if (!port) throw new Error('Missing "port"');
 	let fns: Record<string, Function> = Object.create(null);
@@ -19,21 +41,8 @@ export const runServiceBridgeWorker = (port: MessagePort | null) => {
 	const makeFn = (fnDef: string) => Function(`return (${fnDef}).apply(this, arguments)`);
 
 	const onConfig = (fnDef: string, basePath: string) => {
-		const baseUrl = new URL(`file://${basePath}/`);
-		const resolve = (relPath: string) => new URL(relPath, baseUrl).href;
-
 		var fn = makeFn(fnDef);
-		return Promise.resolve(
-			fn({
-				add(name: string, fn: Function) {
-					fns[name] = fn;
-					return name;
-				},
-				import(relPath: string) {
-					return import(resolve(relPath));
-				},
-			})
-		);
+		return Promise.resolve(fn(new WorkerBridgeBuilder(new URL(`file://${basePath}/`), fns)));
 	};
 
 	port.on('message', async function onMessage(data: unknown[]) {

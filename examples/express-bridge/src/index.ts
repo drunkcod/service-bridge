@@ -1,10 +1,10 @@
-import type { HttpResponse } from './HttpResponse.js';
-import { startServices, stopServices } from './startServices.js';
+import type { ServiceResponse } from './ServiceResponse.js';
+import { startServices } from './startServices.js';
 import express from 'express';
 
-type HttpHandler = (...args: any[]) => Promise<HttpResponse>;
+type ServiceHandler = (...args: any[]) => Promise<ServiceResponse>;
 
-const run = async <T extends HttpHandler>(res: express.Response, handler: T, ...args: Parameters<T>) => {
+const run = async <T extends ServiceHandler>(res: express.Response, handler: T, ...args: Parameters<T>) => {
 	const { status, body } = await handler(...args);
 	res.status(status).send(body);
 };
@@ -13,10 +13,12 @@ const run = async <T extends HttpHandler>(res: express.Response, handler: T, ...
 	const port = 8080;
 	const app = express();
 
-	var services = await startServices();
+	var proxy = await startServices();
+	console.log(proxy.services);
+	const { auth, hello } = proxy.services;
 
 	// delegate to worker
-	app.get('/hello', (_, res) => run(res, services.hello));
+	app.get('/hello', (_, res) => run(res, hello));
 
 	// extract parameters
 	app.get('/user', (req, res) => {
@@ -25,7 +27,7 @@ const run = async <T extends HttpHandler>(res: express.Response, handler: T, ...
 			res.sendStatus(403);
 			return;
 		}
-		run(res, services.user, authorization);
+		run(res, auth.user, authorization);
 	});
 
 	//as middleware
@@ -35,11 +37,22 @@ const run = async <T extends HttpHandler>(res: express.Response, handler: T, ...
 			res.sendStatus(403);
 			return;
 		}
-		const { status } = await services.user(authorization);
+		const { status, body } = await auth.user(authorization);
+		Reflect.set(req, 'user', body);
 		if (status === 200) next();
 		else res.sendStatus(403);
 	};
-	app.get('/user/hello', authMiddleware, (_, res) => run(res, services.hello));
+
+	interface UserRequest extends express.Request {
+		user: { userId: string };
+	}
+
+	function assertUserRequest(req: express.Request): asserts req is UserRequest {}
+
+	app.get('/user/hello', authMiddleware, (req, res) => {
+		assertUserRequest(req);
+		run(res, hello, req.user.userId);
+	});
 
 	console.log(`🚀 listening on port ${port}. Ctrl+C to quit.`);
 	var server = app.listen(port);
@@ -47,7 +60,7 @@ const run = async <T extends HttpHandler>(res: express.Response, handler: T, ...
 	process.once('SIGINT', async () => {
 		console.log('bye...');
 		await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-		stopServices(services);
+		proxy.close();
 		await new Promise((resolve) => process.stdout.write('', resolve));
 	});
 })();

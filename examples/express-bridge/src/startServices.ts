@@ -1,25 +1,21 @@
 import { type MessagePort, Worker } from 'worker_threads';
-import { ServiceBridge, makeProxy, startServiceBridgeWorker } from '@drunkcod/service-bridge';
+import { serviceBridgeBuilder } from '@drunkcod/service-bridge';
 
-const CloseBridge: unique symbol = Symbol('closeBridge');
-
-export const startServices = async (port?: MessagePort | Worker) => {
-	const bridge = new ServiceBridge(port ?? 'worker');
-	var services = await bridge.config(import.meta.url, async (bridge) => {
-		const { hello } = (await bridge.import('./services/hello.js')) as typeof import('./services/hello.js');
-		const { user } = (await bridge.import('./services/auth.js')) as typeof import('./services/auth.js');
-
-		return {
-			hello: bridge.add('/hello', hello),
-			user: bridge.add('/auth/user', user),
-		};
-	});
-	return {
-		...makeProxy(services, bridge),
-		[CloseBridge]() {
-			bridge.close();
-		},
-	};
+type ServiceRegistry = {
+	'./services/auth.js': typeof import('./services/auth.js');
+	'./services/hello.js': typeof import('./services/hello.js');
 };
 
-export const stopServices = (x: { [CloseBridge]: () => void }) => x[CloseBridge]();
+export const startServices = (port?: MessagePort | Worker) =>
+	serviceBridgeBuilder<ServiceRegistry>().createProxy(
+		async (bridge) => {
+			const { user } = await bridge.import('./services/auth.js');
+			const { hello } = await bridge.import('./services/hello.js');
+
+			return {
+				auth: bridge.add({ user: ['/auth/user', user] }),
+				hello: bridge.add('/hello', hello),
+			};
+		},
+		{ port, baseUrl: import.meta.url }
+	);
