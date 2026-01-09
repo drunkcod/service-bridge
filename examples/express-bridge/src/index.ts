@@ -40,7 +40,7 @@ function ensureAuthenticated(req: express.Request): asserts req is express.Reque
 			res.sendStatus(403);
 			return;
 		}
-		run(res, auth.user, authorization);
+		run(res, auth.getUser, authorization);
 	});
 
 	//as middleware
@@ -50,7 +50,7 @@ function ensureAuthenticated(req: express.Request): asserts req is express.Reque
 			res.sendStatus(400);
 			return;
 		}
-		const user = await auth.user(authorization);
+		const user = await auth.getUser(authorization);
 		if (user.status === 200) {
 			req.user = user.body;
 			next();
