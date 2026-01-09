@@ -4,10 +4,19 @@
   "description": "",
   "license": "MIT",
   "author": "Tobbe Gyllebring <tobbe@drunkcod.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/drunkcod/service-bridge.git"
+  },
   "type": "module",
   "engines": {
     "node": ">=24.0.0"
   },
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib/**/*"
+  ],
   "exports": {
     ".": "./lib/index.js",
     "./worker": "./lib/runServiceBridgeWorker.js"
