@@ -25,6 +25,7 @@ export const user = (authorization: string) => {
 	}
 };
 
-export const startService = (): ServiceMap => ({
-	getUser: ['/auth/user', user],
-});
+export const startService = () =>
+	({
+		getUser: ['/auth/user', user],
+	} satisfies ServiceMap);

@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "es2024",
+    "lib": ["ES2024"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "declaration": true,
+
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "baseUrl": "./",
+    "rootDir": "./src",
+    "outDir": "dist",
+    "esModuleInterop": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true
+  },
+  "exclude": ["node_modules", "dist"]
+}
