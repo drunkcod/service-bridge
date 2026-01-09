@@ -1,7 +1,8 @@
-import { type MessagePort, Worker } from 'worker_threads';
+import { type MessagePort, type Transferable, Worker } from 'worker_threads';
 import type { AnyFn, FnRef, ServiceBridgeBuilder, ServiceBridgeWorkerResult, Strings } from './ServiceBridge.js';
 import { BridgeCommand } from './BridgeCommand.js';
 import { toErrorReply } from './toErrorReply.js';
+import { isTransfer } from './transfer.js';
 
 export const ThisFileName =
 	(function getFileName() {
@@ -37,9 +38,9 @@ const makeFn = (fnDef: string) => Function(`return (${fnDef}).apply(this, argume
 export const runServiceBridgeWorker = (port: MessagePort | null) => {
 	if (!port) throw new Error('Missing "port"');
 	let fns: Record<string, Function> = Object.create(null);
-	const reply = (result: ServiceBridgeWorkerResult) => {
+	const reply = (result: ServiceBridgeWorkerResult, transferList?: Transferable[]) => {
 		try {
-			port.postMessage(result);
+			port.postMessage(result, transferList);
 		} catch (err) {
 			port.postMessage([result[0], toErrorReply(err), null]);
 		}
@@ -60,7 +61,8 @@ export const runServiceBridgeWorker = (port: MessagePort | null) => {
 			if (fn) {
 				try {
 					const r = await Promise.resolve(fn(...data));
-					reply([slot, null, r]);
+					if (isTransfer(r)) reply([slot, null, r.value], r.list);
+					else reply([slot, null, r]);
 				} catch (err) {
 					reply([slot, toErrorReply(err), null]);
 				}

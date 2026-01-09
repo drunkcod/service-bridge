@@ -43,4 +43,7 @@ import { transfer } from '@drunkcod/service-bridge';
 	const m = new MessageChannel();
 	m.port1.on('message', (message) => console.log(message));
 	await services.transfer(transfer(m.port2));
+
+	const { bytes } = await services.transferReply();
+	console.log({ 'bytes.byteLength': bytes.byteLength });
 })();

@@ -10,6 +10,8 @@ export const startServices = (port?: MessagePort | Worker) =>
 		async (bridge) => {
 			const math = await bridge.import('./services/math.js');
 			const { setTimeout } = await import('node:timers/promises');
+			const { transfer } = await import('@drunkcod/service-bridge');
+
 			return {
 				add: bridge.add('/math/add', math.add),
 				error: bridge.add('/math/error', math.error),
@@ -20,6 +22,10 @@ export const startServices = (port?: MessagePort | Worker) =>
 				}),
 				transfer: bridge.add('/transfer', (port: Transferred<MessagePort>) => {
 					port.postMessage('hello from the other side!');
+				}),
+				transferReply: bridge.add('/transferReply', () => {
+					const bytes = new ArrayBuffer(1024);
+					return transfer({ bytes }, [bytes]);
 				}),
 			};
 		},
