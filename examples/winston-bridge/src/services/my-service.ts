@@ -22,7 +22,7 @@ export const startService = () =>
 		hello: [
 			'/hello',
 			() => {
-				log.info('hello service world.');
+				log.info(`hello ${transport.connected ? 'connected' : 'disconnected'} log world.`, { connected: transport.connected });
 			},
 		],
 	} satisfies ServiceMap);

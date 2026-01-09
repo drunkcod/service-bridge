@@ -15,6 +15,10 @@ export class MessagePortTransport extends Transport {
 		if (port) this.connect(port);
 	}
 
+	get connected() {
+		return !!this.port;
+	}
+
 	connect(port: MessagePort) {
 		this.port = port;
 		this.#flush();
