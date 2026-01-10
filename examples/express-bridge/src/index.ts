@@ -1,6 +1,8 @@
 import type { ServiceResponse } from './ServiceResponse.js';
-import { startServices } from './startServices.js';
+import { startAuth, startHello } from './startServices.js';
 import express from 'express';
+
+import { transfer } from '@drunkcod/service-bridge';
 
 type ServiceHandler = (...args: any[]) => Promise<ServiceResponse>;
 
@@ -8,8 +10,6 @@ const run = async <T extends ServiceHandler>(res: express.Response, handler: T, 
 	const { status, body } = await handler(...args);
 	res.status(status).send(body);
 };
-
-type UserInfo = { userId: string };
 
 declare global {
 	namespace Express {
@@ -23,24 +23,49 @@ function ensureAuthenticated(req: express.Request): asserts req is express.Reque
 	if (!req.user) throw new Error('Not authenticated.');
 }
 
+import winston from 'winston';
+import { forwardLogMessages } from './MessagePortTransport.js';
+import { loggerFormat } from './loggerFormat.js';
+import type { UserInfo } from './services/auth.js';
+
 (async function main() {
 	const port = 8080;
+
+	const log = winston.createLogger({
+		transports: [new winston.transports.Console()],
+		format: loggerFormat,
+	});
+
 	const app = express();
 
-	var proxy = await startServices();
-	const { auth, hello } = proxy.services;
+	const authService = await startAuth();
+	const auth = authService.services;
+	const authLogChannel = new MessageChannel();
+	forwardLogMessages(authLogChannel.port1, log.transports);
+
+	var helloService = await startHello();
+	const hello = helloService.services;
+	const helloLogChannel = new MessageChannel();
+	forwardLogMessages(helloLogChannel.port1, log.transports);
+
+	auth.configure(transfer(authLogChannel.port2));
+	hello.configure(authService.transfer(), transfer(helloLogChannel.port2));
 
 	// delegate to worker
-	app.get('/hello', (_, res) => run(res, hello));
+	app.get('/hello', (_, res) => run(res, hello.hello));
 
 	// extract parameters
-	app.get('/user', (req, res) => {
+	app.get('/user', async (req, res) => {
 		const authorization = req.headers.authorization;
 		if (!authorization) {
 			res.sendStatus(403);
 			return;
 		}
-		run(res, auth.getUser, authorization);
+		await run(res, auth.getUser, authorization);
+	});
+
+	app.post('/login', express.json(), (req, res) => {
+		return run(res, auth.login, req.body.username, req.body.password);
 	});
 
 	//as middleware
@@ -52,23 +77,33 @@ function ensureAuthenticated(req: express.Request): asserts req is express.Reque
 		}
 		const user = await auth.getUser(authorization);
 		if (user.status === 200) {
-			req.user = user.body;
+			req.user = user.body.user;
 			next();
 		} else res.status(user.status).send(user.status);
 	};
 
 	app.get('/user/hello', authMiddleware, (req, res) => {
 		ensureAuthenticated(req);
-		run(res, hello, req.user.userId);
+		run(res, hello.hello, req.user.id.toString());
 	});
 
-	console.log(`🚀 listening on port ${port}. Ctrl+C to quit.`);
+	// cross service calls
+	app.get('/hello/auth', (req, res) => {
+		const authorization = req.headers.authorization;
+		if (!authorization) {
+			res.sendStatus(403);
+			return;
+		}
+		run(res, hello.helloAuth, authorization);
+	});
+	log.info(`🚀 listening on port ${port}. Ctrl+C to quit.`);
 	var server = app.listen(port);
 
 	process.once('SIGINT', async () => {
 		console.log('bye...');
 		await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-		proxy.close();
+		helloService.close();
+		authService.close();
 		await new Promise((resolve) => process.stdout.write('', resolve));
 	});
 })();

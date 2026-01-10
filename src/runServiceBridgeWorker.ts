@@ -18,16 +18,22 @@ class WorkerBridgeBuilder implements ServiceBridgeBuilder<any> {
 	add<T extends Record<string, [string, AnyFn]>>(methods: T): { [P in Strings<keyof T>]: FnRef<T[P][1]> };
 	add(nameOrMap: string | Record<string, [string, Function]>, fn?: Function) {
 		if (typeof nameOrMap === 'string') {
-			this.fns[nameOrMap] = fn!;
+			this.#add(nameOrMap, fn!);
 			return nameOrMap;
 		}
 		const r: Record<string, string> = {};
 		for (const [name, x] of Object.entries(nameOrMap)) {
 			r[name] = x[0];
-			this.fns[x[0]] = x[1];
+			this.#add(x[0], x[1]);
 		}
 		return r;
 	}
+
+	#add(key: string, fn: Function) {
+		if (key in this.fns) throw new Error(`Duplicate function identifier "${key}".`);
+		this.fns[key] = fn;
+	}
+
 	import(relPath: string) {
 		return import(new URL(relPath, this.baseUrl).href);
 	}
@@ -35,23 +41,25 @@ class WorkerBridgeBuilder implements ServiceBridgeBuilder<any> {
 
 const makeFn = (fnDef: string) => Function(`return (${fnDef}).apply(this, arguments)`);
 
+const reply = (port: MessagePort, result: ServiceBridgeWorkerResult, transferList?: Transferable[]) => {
+	try {
+		port.postMessage(result, transferList);
+	} catch (err) {
+		port.postMessage([result[0], toErrorReply(err), null]);
+	}
+};
+
 export const runServiceBridgeWorker = (port: MessagePort | null) => {
 	if (!port) throw new Error('Missing "port"');
+
 	let fns: Record<string, Function> = Object.create(null);
-	const reply = (result: ServiceBridgeWorkerResult, transferList?: Transferable[]) => {
-		try {
-			port.postMessage(result, transferList);
-		} catch (err) {
-			port.postMessage([result[0], toErrorReply(err), null]);
-		}
-	};
 
 	const onConfig = (fnDef: string, basePath: string) => {
 		var fn = makeFn(fnDef);
 		return Promise.resolve(fn(new WorkerBridgeBuilder(new URL(`file://${basePath}/`), fns)));
 	};
 
-	port.on('message', async function onMessage(data: unknown[]) {
+	async function onMessage(this: MessagePort, data: unknown[]) {
 		const slot = data.shift() as bigint,
 			method = data.shift() as BridgeCommand;
 
@@ -61,29 +69,36 @@ export const runServiceBridgeWorker = (port: MessagePort | null) => {
 			if (fn) {
 				try {
 					const r = await Promise.resolve(fn(...data));
-					if (isTransfer(r)) reply([slot, null, r.value], r.list);
-					else reply([slot, null, r]);
+					if (isTransfer(r)) reply(this, [slot, null, r.value], r.list);
+					else reply(this, [slot, null, r]);
 				} catch (err) {
-					reply([slot, toErrorReply(err), null]);
+					reply(this, [slot, toErrorReply(err), null]);
 				}
 			} else {
-				reply([slot, { name: 'MissingFunctionError', message: 'No such function', cause: fnName }, null]);
+				reply(this, [slot, { name: 'MissingFunctionError', message: 'No such function', cause: fnName }, null]);
 			}
 		} else {
 			switch (method) {
 				case BridgeCommand.config:
 					const args = data as [string, string];
-					reply([slot, null, await onConfig(args[0], args[1])]);
+					reply(this, [slot, null, await onConfig(args[0], args[1])]);
 					break;
 				case BridgeCommand.close: {
 					fns = Object.create(null);
-					reply([slot, null, null]);
-					port.close();
+					reply(this, [slot, null, null]);
+					this.close();
+					break;
+				}
+				case BridgeCommand.connect: {
+					const port = data[0] as MessagePort;
+					port.on('message', onMessage);
 					break;
 				}
 			}
 		}
-	});
+	}
+
+	port.on('message', onMessage);
 };
 
 const DefaultWorkerScript = `

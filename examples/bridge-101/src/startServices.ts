@@ -1,5 +1,5 @@
 import { type MessagePort, Worker } from 'worker_threads';
-import { serviceBridgeBuilder, type Transferred } from '@drunkcod/service-bridge';
+import { serviceBridgeBuilder, type Transferred, type ServiceRef, type TransferredService } from '@drunkcod/service-bridge';
 
 type ServiceRegistry = {
 	'./services/math.js': typeof import('./services/math.js');
@@ -10,7 +10,7 @@ export const startServices = (port?: MessagePort | Worker) =>
 		async (bridge) => {
 			const math = await bridge.import('./services/math.js');
 			const { setTimeout } = await import('node:timers/promises');
-			const { transfer } = await import('@drunkcod/service-bridge');
+			const { ServiceBridge, serviceProxy, transfer } = await import('@drunkcod/service-bridge');
 
 			return {
 				add: bridge.add('/math/add', math.add),
@@ -26,6 +26,15 @@ export const startServices = (port?: MessagePort | Worker) =>
 				transferReply: bridge.add('/transferReply', () => {
 					const bytes = new ArrayBuffer(1024);
 					return transfer({ bytes }, [bytes]);
+				}),
+				transferProxy: bridge.add('/transferProxy', async (math: TransferredService<{ add(x: number, y: number): number }>) => {
+					var bridge = new ServiceBridge({ port: math.port, baseUrl: math.baseUrl });
+					var { add } = serviceProxy(bridge, math.services);
+					try {
+						return await add(10, 7);
+					} finally {
+						bridge.close();
+					}
 				}),
 			};
 		},

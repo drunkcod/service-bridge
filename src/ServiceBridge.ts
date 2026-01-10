@@ -9,12 +9,19 @@ import { ServiceBridgeCallError } from './ServiceBridgeCallError.js';
 import { startServiceBridgeWorker } from './runServiceBridgeWorker.js';
 import { serviceProxy } from './ServiceProxy.js';
 import { toErrorReply } from './toErrorReply.js';
-import { isTransfer, type Transfer, type Transferred } from './transfer.js';
+import { isTransfer, transfer, type Transfer, type Transferred } from './transfer.js';
+import type { ServiceBridgeProxy } from './ServiceBridgeProxy.js';
 
 export type AnyFn = (...args: any[]) => any;
+export type Async<T> = T extends (...args: infer P) => infer R ? (...args: P) => Promise<Awaited<R>> : never;
 
 const FnRef: unique symbol = Symbol('FnRef');
 export type FnRef<T extends AnyFn> = string & { [FnRef]: T };
+export type FnRefMap<T> = { [P in keyof T]: T[P] extends AnyFn ? FnRef<T[P]> : FnRefMap<T[P]> };
+export type ServiceRef<T> = {
+	baseUrl: string;
+	services: FnRefMap<T>;
+};
 
 type ServiceParameters<Args> = { [P in keyof Args]: Args[P] extends Transferred<infer A> ? Transfer<A> : Args[P] };
 type ServiceReturn<T> = T extends Transfer<infer R> ? R : T;
@@ -40,8 +47,13 @@ type WorkerPort = MessagePort | Worker;
 
 type ServiceBridgeOptions = {
 	port?: WorkerPort;
-	baseUrl?: string;
+	baseUrl: string;
 	maxSlots?: number;
+};
+
+const normalizeBaseUrl = (bu: string) => {
+	if (bu.startsWith('file://')) bu = fileURLToPath(bu);
+	return bu.endsWith('.js') || bu.endsWith('.ts') ? dirname(bu) : bu;
 };
 
 export class ServiceBridge<ServiceRegistry = any> {
@@ -49,14 +61,13 @@ export class ServiceBridge<ServiceRegistry = any> {
 	readonly slots;
 	readonly baseUrl: string;
 
-	constructor(options?: ServiceBridgeOptions) {
-		const port = options?.port ?? startServiceBridgeWorker();
+	constructor(options: ServiceBridgeOptions) {
+		const port = options.port ?? startServiceBridgeWorker();
 		this.port = port ?? startServiceBridgeWorker();
-		this.slots = new SlotBuffer<{ resolve: (result: any) => void; reject: (reason?: any) => void }>(options?.maxSlots ?? 1024);
+		this.slots = new SlotBuffer<{ resolve: (result: any) => void; reject: (reason?: any) => void }>(options.maxSlots ?? 1024);
 
-		let baseUrl = options?.baseUrl ?? calleeRoot(ServiceBridge.prototype.register);
-		if (baseUrl.startsWith('file://')) baseUrl = fileURLToPath(baseUrl);
-		this.baseUrl = baseUrl.endsWith('.js') || baseUrl.endsWith('.ts') ? dirname(baseUrl) : baseUrl;
+		const bar = { ...options };
+		this.baseUrl = normalizeBaseUrl(options.baseUrl ?? bar.baseUrl);
 
 		port.on('message', (message) => this.#onMessage(message));
 	}
@@ -84,6 +95,15 @@ export class ServiceBridge<ServiceRegistry = any> {
 		this.#postMessage(BridgeCommand.close);
 	}
 
+	//connect additional port(s).
+	connect(port: MessagePort) {
+		this.#postMessage(BridgeCommand.connect, transfer(port));
+	}
+
+	rebind(port: MessagePort) {
+		return new ServiceBridge<ServiceRegistry>({ port, baseUrl: this.baseUrl });
+	}
+
 	#onMessage([slot, error, result]: ServiceBridgeWorkerResult) {
 		const p = this.slots.release(slot);
 		if (p === undefined) return;
@@ -99,7 +119,7 @@ export class ServiceBridge<ServiceRegistry = any> {
 		if (args) msg.push(...args);
 		try {
 			let transferList: undefined | any[];
-			for (let t = 3; t < msg.length; ++t) {
+			for (let t = 2; t < msg.length; ++t) {
 				const o = msg[t];
 				if (!isTransfer(o)) continue;
 
@@ -117,29 +137,36 @@ export class ServiceBridge<ServiceRegistry = any> {
 }
 
 export const serviceBridgeBuilder = <ServiceRegistry>() => ({
-	async createProxy<T extends Parameters<ServiceBridge<ServiceRegistry>['register']>[0]>(register: T, options?: ServiceBridgeOptions) {
-		const bridge = new ServiceBridge<ServiceRegistry>(options);
-		const services = await bridge.register(register);
-		return {
+	async createProxy<T extends Parameters<ServiceBridge<ServiceRegistry>['register']>[0]>(register: T, options: ServiceBridgeOptions) {
+		const makeProxy = (bridge: ServiceBridge<ServiceRegistry>, services: Awaited<ReturnType<T>>): ServiceBridgeProxy<ServiceRegistry, T> => ({
 			services: serviceProxy(bridge, services),
+			addPort() {
+				const { port1, port2 } = new MessageChannel();
+				bridge.connect(port2);
+				return port1;
+			},
 			close() {
 				bridge.close();
 			},
-		};
+			connect(port: MessagePort) {
+				bridge.connect(port);
+			},
+			rebind(port: MessagePort): typeof this {
+				return makeProxy(bridge.rebind(port), services);
+			},
+			serviceRef() {
+				return {
+					baseUrl: bridge.baseUrl,
+					services,
+				};
+			},
+			transfer() {
+				const port = this.addPort();
+				return transfer({ port, ...this.serviceRef() }, [port]);
+			},
+		});
+		const bridge = new ServiceBridge<ServiceRegistry>(options);
+		const services = await bridge.register(register);
+		return makeProxy(bridge, services);
 	},
 });
-
-const calleeRoot = (startAt: Function) => {
-	const o: { stack?: string } = {};
-	const maxStack = Error.stackTraceLimit;
-	Error.stackTraceLimit = 1;
-	Error.captureStackTrace(o, startAt);
-	Error.stackTraceLimit = maxStack;
-	const cameFrom = o.stack?.substring('Error\n'.length);
-	const match = cameFrom?.match(/\((.*):\d+:\d+\)$/) || cameFrom?.match(/at (.*):\d+:\d+$/);
-	const callerFile = match && match[1];
-	if (!callerFile) throw new Error('Failed to determine caller path.');
-	return dirname(asPath(callerFile));
-};
-
-const asPath = (urlOrPath: string) => (urlOrPath.startsWith('file://') ? fileURLToPath(urlOrPath) : urlOrPath);

@@ -46,4 +46,7 @@ import { transfer } from '@drunkcod/service-bridge';
 
 	const { bytes } = await services.transferReply();
 	console.log({ 'bytes.byteLength': bytes.byteLength });
+
+	//connect secondary port
+	console.log(await services.transferProxy(proxy.transfer()));
 })();
