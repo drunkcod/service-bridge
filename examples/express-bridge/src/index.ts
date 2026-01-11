@@ -1,20 +1,12 @@
-import type { ServiceResponse } from './ServiceResponse.js';
-import { startAuth, startHello } from './startServices.js';
 import express from 'express';
-
-import { transfer } from '@drunkcod/service-bridge';
-
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { transfer } from '@drunkcod/service-bridge';
+
+import { startAuth, startHello } from './startServices.js';
+import { toExpress } from './expressAdapter.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-
-type ServiceHandler = (...args: any[]) => Promise<ServiceResponse>;
-
-const run = async <T extends ServiceHandler>(res: express.Response, handler: T, ...args: Parameters<T>) => {
-	const { status, body } = await handler(...args);
-	res.status(status).send(body);
-};
 
 declare global {
 	namespace Express {
@@ -29,7 +21,7 @@ function ensureAuthenticated(req: express.Request): asserts req is express.Reque
 }
 
 import winston from 'winston';
-import { forwardLogMessages } from './MessagePortTransport.js';
+import { createLogPort } from './MessagePortTransport.js';
 import { loggerFormat } from './loggerFormat.js';
 import type { UserInfo } from './services/auth.js';
 
@@ -46,19 +38,17 @@ import type { UserInfo } from './services/auth.js';
 
 	const authService = await startAuth();
 	const auth = authService.services;
-	const authLogChannel = new MessageChannel();
-	forwardLogMessages(authLogChannel.port1, log.transports);
+	auth.configure(transfer(createLogPort(log.transports)));
 
 	var helloService = await startHello();
 	const hello = helloService.services;
-	const helloLogChannel = new MessageChannel();
-	forwardLogMessages(helloLogChannel.port1, log.transports);
-
-	auth.configure(transfer(authLogChannel.port2));
-	hello.configure(authService.transfer(), transfer(helloLogChannel.port2));
+	// 🔗 Connect services directly to each other.
+	// This allows 'hello' to talk to 'auth' without going through the main thread.
+	// The main thread is only used to set up the connection.
+	hello.configure(authService.transfer(), transfer(createLogPort(log.transports)));
 
 	// delegate to worker
-	app.get('/hello', (_, res) => run(res, hello.hello));
+	app.get('/hello', async (_, res) => await toExpress(res, hello.hello));
 
 	// extract parameters
 	app.get('/user', async (req, res) => {
@@ -67,11 +57,11 @@ import type { UserInfo } from './services/auth.js';
 			res.sendStatus(403);
 			return;
 		}
-		await run(res, auth.getUser, authorization);
+		await toExpress(res, auth.getUser, authorization);
 	});
 
-	app.post('/login', express.json(), (req, res) => {
-		return run(res, auth.login, req.body.username, req.body.password);
+	app.post('/login', express.json(), async (req, res) => {
+		return await toExpress(res, auth.login, req.body.username, req.body.password);
 	});
 
 	//as middleware
@@ -88,19 +78,19 @@ import type { UserInfo } from './services/auth.js';
 		} else res.status(user.status).send(user.status);
 	};
 
-	app.get('/user/hello', authMiddleware, (req, res) => {
+	app.get('/user/hello', authMiddleware, async (req, res) => {
 		ensureAuthenticated(req);
-		run(res, hello.hello, req.user.id.toString());
+		await toExpress(res, hello.hello, req.user.id.toString());
 	});
 
 	// cross service calls
-	app.get('/hello/auth', (req, res) => {
+	app.get('/hello/auth', async (req, res) => {
 		const authorization = req.headers.authorization;
 		if (!authorization) {
 			res.sendStatus(403);
 			return;
 		}
-		run(res, hello.helloAuth, authorization);
+		await toExpress(res, hello.helloAuth, authorization);
 	});
 	log.info(`🚀 listening on port ${port}. Ctrl+C to quit.`);
 	var server = app.listen(port);

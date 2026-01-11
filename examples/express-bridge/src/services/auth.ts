@@ -12,7 +12,6 @@ import { ServiceResponse } from '../ServiceResponse.js';
 
 import { MessagePortTransport } from '../MessagePortTransport.js';
 import { loggerFormat } from '../loggerFormat.js';
-import type { TransferRef } from '../../../../lib/transfer.js';
 
 const secret = 'AUTH_SECRET';
 
