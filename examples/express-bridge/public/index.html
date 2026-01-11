@@ -42,6 +42,21 @@
                 </div>
                 
                 <div class="border-t pt-4">
+                    <h2 class="font-bold text-gray-800 mb-2">User Details (/user)</h2>
+                    
+                    <div x-show="!userInfo && !userError" class="text-gray-500 italic flex items-center gap-2">
+                        <svg class="animate-spin h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        Loading user info...
+                    </div>
+                    
+                    <div x-show="userInfo" class="bg-gray-50 text-gray-800 p-3 rounded border border-gray-200 shadow-sm text-sm font-mono whitespace-pre-wrap" x-text="JSON.stringify(userInfo, null, 2)"></div>
+                    
+                    <div x-show="userError" class="bg-red-50 text-red-600 p-3 rounded border border-red-100 text-sm">
+                        <span x-text="userError"></span>
+                    </div>
+                </div>
+
+                <div class="border-t pt-4">
                     <h2 class="font-bold text-gray-800 mb-2">Secure Message (/hello/auth)</h2>
                     
                     <div x-show="!helloResponse && !helloError" class="text-gray-500 italic flex items-center gap-2">
@@ -75,6 +90,8 @@
                 loading: false,
                 helloResponse: null,
                 helloError: null,
+                userInfo: null,
+                userError: null,
 
                 async login() {
                     this.loading = true;
@@ -97,6 +114,7 @@
                         if (res.ok) {
                             this.token = data.token;
                             this.fetchHello();
+                            this.fetchUser();
                         } else {
                             this.error = data.message || `Login failed (${res.status})`;
                         }
@@ -105,6 +123,26 @@
                         console.error(e);
                     } finally {
                         this.loading = false;
+                    }
+                },
+
+                async fetchUser() {
+                    this.userInfo = null;
+                    this.userError = null;
+                    try {
+                        const res = await fetch('/user', {
+                            headers: { 'Authorization': 'Bearer ' + this.token }
+                        });
+                        
+                        const data = await res.json();
+                        
+                        if (res.ok) {
+                            this.userInfo = data; 
+                        } else {
+                            this.userError = `Failed to fetch user: ${res.status}`;
+                        }
+                    } catch (e) {
+                        this.userError = 'Network error during user fetch.';
                     }
                 },
 
@@ -134,6 +172,8 @@
                     this.password = '';
                     this.helloResponse = null;
                     this.helloError = null;
+                    this.userInfo = null;
+                    this.userError = null;
                 }
             }
         }

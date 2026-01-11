@@ -1,4 +1,4 @@
-import { type Async, type ServiceMap, type Transferred, type ServiceRef, ServiceBridge, serviceProxy, type TransferredService } from '@drunkcod/service-bridge';
+import { type ServiceMap, type Transferred, ServiceBridge, serviceProxy, type TransferredService } from '@drunkcod/service-bridge';
 import type { MessagePort } from 'worker_threads';
 import { ServiceResponse } from '../ServiceResponse.js';
 
@@ -6,11 +6,9 @@ import winston from 'winston';
 import { MessagePortTransport } from '../MessagePortTransport.js';
 import { loggerFormat } from '../loggerFormat.js';
 
-import { user } from './auth.js';
+import type { AuthService, AuthServiceMap } from './auth.js';
 
-import type { AuthServiceMap } from './auth.js';
-
-let getUser: Async<typeof user> = function () {
+let getUser: AuthService['getUser'] = function () {
 	throw new Error('Service not configured.');
 };
 

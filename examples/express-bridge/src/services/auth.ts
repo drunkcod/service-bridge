@@ -1,4 +1,4 @@
-import type { ServiceMap, ServiceProxy, Transferred } from '@drunkcod/service-bridge';
+import type { Service, ServiceMap, Transferred } from '@drunkcod/service-bridge';
 import type { MessagePort } from 'worker_threads';
 
 import winston from 'winston';
@@ -12,6 +12,7 @@ import { ServiceResponse } from '../ServiceResponse.js';
 
 import { MessagePortTransport } from '../MessagePortTransport.js';
 import { loggerFormat } from '../loggerFormat.js';
+import type { TransferRef } from '../../../../lib/transfer.js';
 
 const secret = 'AUTH_SECRET';
 
@@ -40,12 +41,17 @@ const addUser = (item: { username: string; password: string; name?: string; role
 	return user;
 };
 
+const findByUsername = (username: string) => {
+	const found = userLookup[username];
+	return found !== undefined ? users[found] : null;
+};
+
 addUser({ username: 'admin', password: '123456', name: 'Joe Admin', role: 'admin' });
 
 export const login = (username: string, password: string) => {
-	log.info('login', { users, userLookup });
-	const found = userLookup[username];
-	const user = found !== undefined ? users[found] : addUser({ username, password, role: 'guest' });
+	if (!username || !password) return ServiceResponse.badRequest('username or password missing.');
+
+	const user = findByUsername(username) ?? addUser({ username, password, role: 'guest' });
 
 	if (bcrypt.compareSync(password, user.password)) return ServiceResponse.ok({ token: sign(user.info, secret) });
 
@@ -81,3 +87,4 @@ export const startService = () =>
 	} satisfies ServiceMap);
 
 export type AuthServiceMap = ReturnType<typeof startService>;
+export type AuthService = Service<typeof startService>;
