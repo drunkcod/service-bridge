@@ -14,7 +14,7 @@ It showcases a "Golden Path" architecture where business logic runs in isolated 
 
 ```mermaid
 graph TD
-    Client[Browser / Client] -->|HTTP Request| Express[Main Thread (Express)]
+    Client[Browser / Client] -->|HTTP Request| Express[Main Thread - Express]
     
     subgraph "Worker Thread 1"
         Auth[Auth Service]
