@@ -8,6 +8,8 @@ import { loggerFormat } from '../loggerFormat.js';
 
 import { user } from './auth.js';
 
+import type { AuthServiceMap } from './auth.js';
+
 let getUser: Async<typeof user> = function () {
 	throw new Error('Service not configured.');
 };
@@ -28,7 +30,7 @@ export const startService = () =>
 	({
 		configure: [
 			'/hello/configure',
-			async (auth: TransferredService<{ getUser: typeof user }>, logPort: Transferred<MessagePort>) => {
+			async (auth: TransferredService<AuthServiceMap>, logPort: Transferred<MessagePort>) => {
 				const bridge = new ServiceBridge({ port: auth.port, baseUrl: auth.baseUrl });
 				const proxy = serviceProxy(bridge, auth.services);
 				getUser = proxy.getUser;

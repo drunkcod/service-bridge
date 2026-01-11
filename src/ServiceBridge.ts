@@ -11,21 +11,20 @@ import { serviceProxy } from './ServiceProxy.js';
 import { toErrorReply } from './toErrorReply.js';
 import { isTransfer, transfer, type Transfer, type Transferred } from './transfer.js';
 import type { ServiceBridgeProxy } from './ServiceBridgeProxy.js';
-
-export type AnyFn = (...args: any[]) => any;
-export type Async<T> = T extends (...args: infer P) => infer R ? (...args: P) => Promise<Awaited<R>> : never;
+import type { AnyFn } from './types.js';
 
 const FnRef: unique symbol = Symbol('FnRef');
 export type FnRef<T extends AnyFn> = string & { [FnRef]: T };
-export type FnRefMap<T> = { [P in keyof T]: T[P] extends AnyFn ? FnRef<T[P]> : FnRefMap<T[P]> };
+export type FnRefMap<T> = { [P in keyof T]: T[P] extends AnyFn ? FnRef<T[P]> : T[P] extends readonly [string, AnyFn] ? FnRef<T[P][1]> : FnRefMap<T[P]> };
 export type ServiceRef<T> = {
 	baseUrl: string;
 	services: FnRefMap<T>;
 };
 
-type ServiceParameters<Args> = { [P in keyof Args]: Args[P] extends Transferred<infer A> ? Transfer<A> : Args[P] };
-type ServiceReturn<T> = T extends Transfer<infer R> ? R : T;
+export type ServiceParameters<Args> = { [P in keyof Args]: Args[P] extends Transferred<infer A> ? Transfer<A> : Args[P] };
+export type ServiceReturn<T> = T extends Transfer<infer R> ? R : T;
 type ServiceFn<T> = T extends (...args: infer P) => infer R ? (...args: ServiceParameters<P>) => ServiceReturn<R> : never;
+export type ServiceFnRef<T> = T extends FnRef<(...args: infer P) => infer R> ? FnRef<(...args: ServiceParameters<P>) => ServiceReturn<R>> : never;
 
 export type ServiceBridgeWorkerErrorReply = { name: string; message: string; cause?: unknown; stack?: string };
 

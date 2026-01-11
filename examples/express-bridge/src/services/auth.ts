@@ -1,4 +1,4 @@
-import type { ServiceMap, Transferred } from '@drunkcod/service-bridge';
+import type { ServiceMap, ServiceProxy, Transferred } from '@drunkcod/service-bridge';
 import type { MessagePort } from 'worker_threads';
 
 import winston from 'winston';
@@ -79,3 +79,5 @@ export const startService = () =>
 			},
 		],
 	} satisfies ServiceMap);
+
+export type AuthServiceMap = ReturnType<typeof startService>;

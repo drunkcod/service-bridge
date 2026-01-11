@@ -1,5 +1,6 @@
 import { type MessagePort, type Transferable, Worker } from 'worker_threads';
-import type { AnyFn, FnRef, ServiceBridgeBuilder, ServiceBridgeWorkerResult, Strings } from './ServiceBridge.js';
+import type { FnRef, ServiceBridgeBuilder, ServiceBridgeWorkerResult, Strings } from './ServiceBridge.js';
+import type { AnyFn } from './types.js';
 import { BridgeCommand } from './BridgeCommand.js';
 import { toErrorReply } from './toErrorReply.js';
 import { isTransfer } from './transfer.js';

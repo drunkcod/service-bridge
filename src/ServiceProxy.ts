@@ -1,4 +1,5 @@
 import { filterInPlace } from './filterInPlace.js';
+import type { IfN } from './types.js';
 import type { ServiceBridge, FnRef } from './ServiceBridge.js';
 
 export type ServiceProxy<T> = {
@@ -6,8 +7,6 @@ export type ServiceProxy<T> = {
 };
 
 export type FnUnref<T> = T extends FnRef<infer Fn> ? (...args: Parameters<Fn>) => Promise<Awaited<ReturnType<Fn>>> : never;
-
-type IfN<T, T2> = [T] extends [never] ? T2 : T;
 
 export const serviceProxy = <T extends object>(bridge: ServiceBridge, x: T): ServiceProxy<T> => {
 	const makeThunk = (x: unknown) => {
