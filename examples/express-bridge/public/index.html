@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Bridge Login</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 h-screen flex items-center justify-center">
+    <div x-data="app()" class="bg-white p-8 rounded shadow-md w-96">
+        <h1 class="text-2xl font-bold mb-6 text-center">Service Bridge</h1>
+        
+        <!-- Login Form -->
+        <template x-if="!token">
+            <form @submit.prevent="login" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Username</label>
+                    <input x-model="username" type="text" class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500" placeholder="admin">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Password</label>
+                    <input x-model="password" type="password" class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500" placeholder="123456">
+                </div>
+                <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition font-medium" :disabled="loading" :class="{'opacity-50': loading}">
+                    <span x-show="!loading">Sign In</span>
+                    <span x-show="loading">Signing in...</span>
+                </button>
+                <p x-show="error" x-text="error" class="text-red-500 text-sm mt-2 text-center"></p>
+            </form>
+        </template>
+
+        <!-- Authenticated View -->
+        <template x-if="token">
+            <div class="space-y-4">
+                <div class="p-4 bg-green-50 text-green-700 rounded border border-green-200">
+                    <div class="flex items-center gap-2 mb-1">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                        <span class="font-bold">Authenticated</span>
+                    </div>
+                    <p class="text-xs break-all text-gray-500 font-mono" x-text="token"></p>
+                </div>
+                
+                <div class="border-t pt-4">
+                    <h2 class="font-bold text-gray-800 mb-2">Secure Message (/hello/auth)</h2>
+                    
+                    <div x-show="!helloResponse && !helloError" class="text-gray-500 italic flex items-center gap-2">
+                        <svg class="animate-spin h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        Fetching...
+                    </div>
+                    
+                    <div x-show="helloResponse" class="bg-blue-50 text-blue-800 p-3 rounded border border-blue-100 shadow-sm">
+                        <span x-text="helloResponse" class="font-medium"></span>
+                    </div>
+                    
+                    <div x-show="helloError" class="bg-red-50 text-red-600 p-3 rounded border border-red-100 text-sm">
+                        <span x-text="helloError"></span>
+                    </div>
+                </div>
+
+                <button @click="logout" class="w-full bg-gray-200 text-gray-700 p-2 rounded hover:bg-gray-300 transition font-medium">
+                    Sign Out
+                </button>
+            </div>
+        </template>
+    </div>
+
+    <script>
+        function app() {
+            return {
+                username: '',
+                password: '',
+                token: null,
+                error: null,
+                loading: false,
+                helloResponse: null,
+                helloError: null,
+
+                async login() {
+                    this.loading = true;
+                    this.error = null;
+                    try {
+                        const res = await fetch('/login', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ username: this.username, password: this.password })
+                        });
+                        
+                        const body = await res.text();
+                        let data;
+                        try {
+                             data = JSON.parse(body);
+                        } catch(e) {
+                            data = { message: body || 'Unknown error' };
+                        }
+
+                        if (res.ok) {
+                            this.token = data.token;
+                            this.fetchHello();
+                        } else {
+                            this.error = data.message || `Login failed (${res.status})`;
+                        }
+                    } catch (e) {
+                        this.error = 'Network error occurred.';
+                        console.error(e);
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                async fetchHello() {
+                    this.helloResponse = null;
+                    this.helloError = null;
+                    try {
+                        const res = await fetch('/hello/auth', {
+                            headers: { 'Authorization': 'Bearer ' + this.token }
+                        });
+                        
+                        const text = await res.text();
+                        
+                        if (res.ok) {
+                            this.helloResponse = text; 
+                        } else {
+                            this.helloError = `Failed to fetch: ${res.status} ${res.statusText}`;
+                        }
+                    } catch (e) {
+                        this.helloError = 'Network error during secure fetch.';
+                    }
+                },
+                
+                logout() {
+                    this.token = null;
+                    this.username = '';
+                    this.password = '';
+                    this.helloResponse = null;
+                    this.helloError = null;
+                }
+            }
+        }
+    </script>
+</body>
+</html>

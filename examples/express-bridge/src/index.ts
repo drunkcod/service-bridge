@@ -4,6 +4,11 @@ import express from 'express';
 
 import { transfer } from '@drunkcod/service-bridge';
 
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
 type ServiceHandler = (...args: any[]) => Promise<ServiceResponse>;
 
 const run = async <T extends ServiceHandler>(res: express.Response, handler: T, ...args: Parameters<T>) => {
@@ -37,6 +42,7 @@ import type { UserInfo } from './services/auth.js';
 	});
 
 	const app = express();
+	app.use(express.static(join(__dirname, '../public')));
 
 	const authService = await startAuth();
 	const auth = authService.services;
