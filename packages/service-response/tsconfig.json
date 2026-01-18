@@ -4,21 +4,19 @@
     "lib": ["ES2024"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-
     "skipLibCheck": true,
     "sourceMap": true,
     "declaration": true,
-
     "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true,
-
     "baseUrl": "./",
+    "rootDir": "./src",
     "outDir": "lib",
     "esModuleInterop": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true
   },
-  "exclude": ["node_modules", "lib", "examples", "packages"]
+  "exclude": ["node_modules", "lib", "src/**/*.spec.ts"]
 }

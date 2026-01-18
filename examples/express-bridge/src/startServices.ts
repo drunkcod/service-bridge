@@ -6,20 +6,20 @@ type ServiceRegistry = {
 	'./services/hello.js': typeof import('./services/hello.js');
 };
 
-export const startAuth = (port?: MessagePort | Worker) =>
+export const startAuth = () =>
 	serviceBridgeBuilder<ServiceRegistry>().createProxy(
 		async (bridge) => {
 			const auth = await bridge.import('./services/auth.js');
 			return bridge.add(auth.startService());
 		},
-		{ port, baseUrl: import.meta.url }
+		{ baseUrl: import.meta.url }
 	);
 
-export const startHello = (port?: MessagePort | Worker) =>
+export const startHello = () =>
 	serviceBridgeBuilder<ServiceRegistry>().createProxy(
 		async (bridge) => {
 			const hello = await bridge.import('./services/hello.js');
 			return bridge.add(hello.startService());
 		},
-		{ port, baseUrl: import.meta.url }
+		{ baseUrl: import.meta.url }
 	);

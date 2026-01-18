@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@drunkcod/service-bridge": "file:../../",
+    "@drunkcod/service-response": "file:../../packages/service-response/",
     "bcrypt": "^6.0.0",
     "colorette": "^2.0.20",
     "express": "^5.2.1",

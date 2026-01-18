@@ -6,12 +6,13 @@ import { fileURLToPath } from 'url';
 import { SlotBuffer } from './SlotBuffer.js';
 import { BridgeCommand } from './BridgeCommand.js';
 import { ServiceBridgeCallError } from './ServiceBridgeCallError.js';
-import { startServiceBridgeWorker } from './runServiceBridgeWorker.js';
+import { runServiceBridgeWorker, startServiceBridgeWorker } from './runServiceBridgeWorker.js';
 import { serviceProxy } from './ServiceProxy.js';
 import { toErrorReply } from './toErrorReply.js';
 import { isTransfer, transfer, type Transfer, type Transferred } from './transfer.js';
 import type { ServiceBridgeProxy } from './ServiceBridgeProxy.js';
 import type { AnyFn } from './types.js';
+import { MessageChannel } from 'node:worker_threads';
 
 const FnRef: unique symbol = Symbol('FnRef');
 export type FnRef<T extends AnyFn> = string & { [FnRef]: T };
@@ -136,7 +137,10 @@ export class ServiceBridge<ServiceRegistry = any> {
 }
 
 export const serviceBridgeBuilder = <ServiceRegistry>() => ({
-	async createProxy<T extends Parameters<ServiceBridge<ServiceRegistry>['register']>[0]>(register: T, options: ServiceBridgeOptions) {
+	async createProxy<T extends Parameters<ServiceBridge<ServiceRegistry>['register']>[0]>(
+		register: T,
+		options: Omit<ServiceBridgeOptions, 'port'> & { channel?: MessageChannel }
+	) {
 		const makeProxy = (bridge: ServiceBridge<ServiceRegistry>, services: Awaited<ReturnType<T>>): ServiceBridgeProxy<ServiceRegistry, T> => ({
 			services: serviceProxy(bridge, services),
 			addPort() {
@@ -164,6 +168,12 @@ export const serviceBridgeBuilder = <ServiceRegistry>() => ({
 				return transfer({ port, ...this.serviceRef() }, [port]);
 			},
 		});
+		const bridgeOptions: ServiceBridgeOptions = { ...options };
+		if (options?.channel) {
+			const { port1, port2 } = options.channel;
+			runServiceBridgeWorker(port2);
+			bridgeOptions.port = port1;
+		}
 		const bridge = new ServiceBridge<ServiceRegistry>(options);
 		const services = await bridge.register(register);
 		return makeProxy(bridge, services);

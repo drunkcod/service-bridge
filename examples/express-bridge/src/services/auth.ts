@@ -8,7 +8,7 @@ import jwt from 'jsonwebtoken';
 const { JsonWebTokenError, verify, sign } = jwt;
 import z from 'zod';
 
-import { ServiceResponse } from '../ServiceResponse.js';
+import { ServiceResponse } from '@drunkcod/service-response';
 
 import { MessagePortTransport } from '../MessagePortTransport.js';
 import { loggerFormat } from '../loggerFormat.js';

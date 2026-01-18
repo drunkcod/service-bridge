@@ -1,13 +1,13 @@
 import type { Response } from 'express';
-import type { ServiceResponse } from './ServiceResponse.js';
+import type { ServiceResponse } from '@drunkcod/service-response';
 
-type ServiceHandler = (...args: any[]) => Promise<ServiceResponse>;
+type ServiceHandler = (...args: any[]) => Promise<ServiceResponse<number, any>>;
 
 /**
  * Adapts a ServiceBridge handler to an Express response.
  * Unwraps the ServiceResponse and applies the status code and body to the Express response.
  */
-export const toExpress = async <T extends ServiceHandler>(res: Response, handler: T, ...args: Parameters<T>) => {
+export const toExpress = async <T extends ServiceHandler, R>(res: Response, handler: T, ...args: Parameters<T>) => {
 	try {
 		const { status, body } = await handler(...args);
 		res.status(status).send(body);

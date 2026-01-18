@@ -24,6 +24,7 @@
     "./worker": "./lib/runServiceBridgeWorker.js"
   },
   "workspaces": [
+    "packages/*",
     "examples/*"
   ],
   "scripts": {

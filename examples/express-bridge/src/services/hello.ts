@@ -1,6 +1,6 @@
 import { type ServiceMap, type Transferred, ServiceBridge, serviceProxy, type TransferredService } from '@drunkcod/service-bridge';
 import type { MessagePort } from 'worker_threads';
-import { ServiceResponse } from '../ServiceResponse.js';
+import { ServiceResponse } from '@drunkcod/service-response';
 
 import winston from 'winston';
 import { MessagePortTransport } from '../MessagePortTransport.js';

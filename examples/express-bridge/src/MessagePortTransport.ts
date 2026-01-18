@@ -56,7 +56,7 @@ export const forwardLogMessages = (port: MessagePort, transports: winston.transp
 };
 
 export const createLogPort = (transports: winston.transport[]) => {
-	const logChannel = new MessageChannel();
-	forwardLogMessages(logChannel.port2, transports);
-	return logChannel.port1;
+	const { port1, port2 } = new MessageChannel();
+	forwardLogMessages(port2, transports);
+	return port1;
 };
